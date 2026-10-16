@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SyncNature — Signature Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:#020408;}
+#app{background:#020408;color:#b0cfe0;font-family:'Rajdhani',sans-serif;overflow-y:auto;overflow-x:hidden;min-height:100vh;}
+#app::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,245,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,245,255,.018) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+#app::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 4px);pointer-events:none;z-index:9999;}
+
+.wrap{position:relative;z-index:1;max-width:1060px;margin:0 auto;padding:24px 18px 80px;}
+
+header{text-align:center;padding:28px 0 32px;}
+.logo{font-family:'Orbitron',monospace;font-size:2.6rem;font-weight:900;letter-spacing:.15em;color:#00f5ff;text-shadow:0 0 10px #00f5ff,0 0 30px #00f5ff55;}
+.logo span{color:#fff;}
+.logo-sub{font-family:'Share Tech Mono',monospace;font-size:.62rem;letter-spacing:.28em;color:#3a6070;margin-top:6px;}
+.hline{height:1px;background:linear-gradient(90deg,transparent,#00f5ff,transparent);margin-top:20px;box-shadow:0 0 8px #00f5ff;}
+
+.panel{background:#060e18;border:1px solid #0a2a3a;border-radius:6px;padding:20px;margin-bottom:16px;position:relative;}
+.panel::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#0080ff,#00f5ff);border-radius:6px 6px 0 0;}
+.ptitle{font-family:'Orbitron',monospace;font-size:.62rem;letter-spacing:.28em;color:#00f5ff;text-shadow:0 0 8px #00f5ff;text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px;}
+.ptitle::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,#0a2a3a,transparent);}
+
+/* ── METHOD INFO ── */
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;font-family:'Share Tech Mono',monospace;font-size:.58rem;}
+.mbox{padding:11px 13px;border-radius:3px;line-height:1.75;}
+.mbox .mt{letter-spacing:.12em;margin-bottom:4px;display:block;font-size:.6rem;}
+.mbox:nth-child(1){border:1px solid rgba(0,245,255,.25);background:rgba(0,245,255,.03);color:#3a8090;}.mbox:nth-child(1) .mt{color:#00f5ff;}
+.mbox:nth-child(2){border:1px solid rgba(0,255,136,.25);background:rgba(0,255,136,.03);color:#3a7060;}.mbox:nth-child(2) .mt{color:#00ff88;}
+.mbox:nth-child(3){border:1px solid rgba(255,214,0,.25);background:rgba(255,214,0,.03);color:#706a3a;}.mbox:nth-child(3) .mt{color:#ffd600;}
+.mbox:nth-child(4){border:1px solid rgba(255,100,0,.25);background:rgba(255,100,0,.03);color:#705a3a;}.mbox:nth-child(4) .mt{color:#ff8800;}
+
+/* ── INPUT AREA ── */
+.input-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+.input-half{display:flex;flex-direction:column;gap:10px;}
+.input-label{font-family:'Share Tech Mono',monospace;font-size:.6rem;letter-spacing:.2em;color:#3a6070;text-transform:uppercase;margin-bottom:4px;}
+
+/* Recording canvas */
+.rec-area{position:relative;background:#010609;border:1px solid #0a2a3a;border-radius:4px;overflow:hidden;}
+.rec-area.recording{border-color:rgba(255,0,60,.7);box-shadow:0 0 20px rgba(255,0,60,.2);}
+.rec-canvas{display:block;width:100%;touch-action:none;cursor:crosshair;}
+.rec-baseline{position:absolute;bottom:30%;left:5%;right:5%;border-top:1px dashed rgba(255,0,60,.3);pointer-events:none;}
+.rec-hint{position:absolute;top:35%;left:50%;transform:translateX(-50%);font-family:'Share Tech Mono',monospace;font-size:.65rem;letter-spacing:.18em;color:#3a6070;pointer-events:none;white-space:nowrap;text-align:center;}
+.rec-ind{display:none;position:absolute;top:8px;right:10px;align-items:center;gap:5px;font-family:'Share Tech Mono',monospace;font-size:.55rem;letter-spacing:.12em;color:#ff003c;}
+.rec-ind.on{display:flex;}
+.rec-dot{width:7px;height:7px;border-radius:50%;background:#ff003c;box-shadow:0 0 7px #ff003c;animation:rp .8s ease-in-out infinite;}
+@keyframes rp{0%,100%{opacity:1}50%{opacity:.15}}
+
+/* Upload area */
+.upload-area{border:1px dashed #0a2a3a;border-radius:4px;background:#010609;padding:24px 16px;text-align:center;cursor:pointer;transition:all .25s;position:relative;}
+.upload-area:hover,.upload-area.drag{border-color:#00f5ff;background:rgba(0,245,255,.04);}
+.upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.upload-icon{font-size:2rem;margin-bottom:8px;}
+.upload-text{font-family:'Share Tech Mono',monospace;font-size:.62rem;letter-spacing:.15em;color:#3a6070;line-height:1.8;}
+.upload-text span{color:#00f5ff;}
+.upload-filename{font-family:'Share Tech Mono',monospace;font-size:.6rem;color:#00ff88;margin-top:6px;display:none;}
+.upload-filename.on{display:block;}
+
+/* Divider */
+.or-divider{display:flex;align-items:center;gap:10px;font-family:'Share Tech Mono',monospace;font-size:.55rem;letter-spacing:.2em;color:#1a3a4a;}
+.or-divider::before,.or-divider::after{content:'';flex:1;height:1px;background:#0a2a3a;}
+
+/* ── BUTTONS ── */
+.btn{font-family:'Orbitron',monospace;font-size:.58rem;letter-spacing:.18em;padding:10px 22px;border-radius:3px;border:1px solid;cursor:pointer;background:transparent;transition:all .2s;text-transform:uppercase;}
+.btn-c{border-color:#00f5ff;color:#00f5ff;}
+.btn-c:hover:not(:disabled){background:rgba(0,245,255,.1);box-shadow:0 0 14px #00f5ff44;}
+.btn-g{border-color:#00ff88;color:#00ff88;}
+.btn-g:hover:not(:disabled){background:rgba(0,255,136,.1);box-shadow:0 0 14px #00ff8844;}
+.btn-r{border-color:#ff003c;color:#ff003c;}
+.btn-r:hover:not(:disabled){background:rgba(255,0,60,.1);}
+.btn-y{border-color:#ffe600;color:#ffe600;}
+.btn-y:hover:not(:disabled){background:rgba(255,230,0,.08);}
+.btn:disabled{opacity:.2;cursor:not-allowed;}
+.btn-big{font-size:.65rem;padding:13px 32px;letter-spacing:.22em;}
+.brow{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;align-items:center;}
+
+/* Download row */
+.dl-row{display:none;margin-top:8px;align-items:center;gap:8px;}
+.dl-row.on{display:flex;}
+.dl-link{font-family:'Share Tech Mono',monospace;font-size:.54rem;letter-spacing:.12em;padding:5px 14px;border:1px solid rgba(0,245,255,.3);color:rgba(0,245,255,.7);background:transparent;cursor:pointer;border-radius:3px;text-decoration:none;transition:all .2s;}
+.dl-link:hover{border-color:#00f5ff;color:#00f5ff;}
+.dl-info{font-family:'Share Tech Mono',monospace;font-size:.52rem;color:#3a6070;}
+
+/* ── ANALYZE BUTTON ROW ── */
+.analyze-row{margin-top:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.analyze-status{font-family:'Share Tech Mono',monospace;font-size:.58rem;color:#3a6070;}
+
+/* ── STATS ── */
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:14px;}
+.sbox{background:#020408;border:1px solid #0a2a3a;border-radius:4px;padding:10px;text-align:center;}
+.sv{font-family:'Share Tech Mono',monospace;font-size:1.1rem;color:#00f5ff;text-shadow:0 0 8px #00f5ff;display:block;}
+.sl{font-size:.55rem;letter-spacing:.12em;color:#3a6070;text-transform:uppercase;margin-top:2px;display:block;}
+
+/* ── VIZ GRID ── */
+.vizgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;}
+.vbox{background:#020408;border:1px solid #0a2a3a;border-radius:4px;padding:12px;}
+.vt{font-family:'Share Tech Mono',monospace;font-size:.57rem;letter-spacing:.18em;color:#3a6070;margin-bottom:8px;text-transform:uppercase;line-height:1.4;}
+.vbox canvas{display:block;width:100%;height:auto;}
+
+/* Math formula display */
+.math-note{font-family:'Share Tech Mono',monospace;font-size:.54rem;color:#1a4a5a;padding:6px 10px;background:rgba(0,245,255,.03);border-left:2px solid #0a2a3a;margin-top:8px;line-height:1.7;}
+
+/* ── LOG ── */
+.log{background:#020408;border:1px solid #0a2a3a;border-radius:4px;padding:9px 12px;height:90px;overflow-y:auto;font-family:'Share Tech Mono',monospace;font-size:.6rem;line-height:1.9;}
+.log::-webkit-scrollbar{width:3px;}
+.log::-webkit-scrollbar-thumb{background:#0a2a3a;border-radius:2px;}
+.le{color:#3a6070;}.le.i{color:#00f5ff;}.le.s{color:#00ff88;}.le.w{color:#ffe600;}.le.e{color:#ff003c;}
+
+.note{font-family:'Share Tech Mono',monospace;font-size:.59rem;color:#3a6070;padding:8px 12px;background:rgba(0,128,255,.04);border-left:2px solid #0080ff;margin-top:12px;line-height:1.75;}
+
+/* ── RESULTS SECTION ── */
+#results{display:none;}
+
+@media(max-width:660px){
+  .mgrid,.input-grid,.vizgrid{grid-template-columns:1fr;}
+  .logo{font-size:1.7rem;}
+  .stats{grid-template-columns:repeat(3,1fr);}
+}
+</style>
+</head>
+<body>
+<div id="app">
+<div class="wrap">
+
+<header>
+  <div class="logo">SYNC<span>NATURE</span></div>
+  <div class="logo-sub">SIGNATURE VIDEO ANALYSIS · EDGE DETECTION · INTERPOLATION · DERIVATIVES · ROOTFINDING</div>
+  <div class="hline"></div>
+</header>
+
+<!-- ══ METHOD DESCRIPTIONS ══ -->
+<div class="panel">
+  <div class="ptitle">Numerical Analysis Pipeline</div>
+  <div class="mgrid">
+    <div class="mbox">
+      <span class="mt">① EDGE DETECTION [OpenCV + numpy]</span>
+      Cyan threshold isolates stroke pixels per frame. Centroid of new pixels
+      tracks pen tip (~90% frame capture). Morphological skeletonization
+      (Zhang-Suen) reduces stroke to 1-pixel centerline. Sobel operator:
+      G = √(Gx² + Gy²) finds geometric stroke boundaries.
+    </div>
+    <div class="mbox">
+      <span class="mt">② INTERPOLATION [scipy CubicSpline]</span>
+      Arc-length parameterization: s[i] = s[i-1] + ‖pos[i] - pos[i-1]‖.
+      Removes speed dependency. CubicSpline fits piecewise cubic polynomials,
+      C2-continuous at every knot. Passes exactly through all input points
+      (residual at knots = 0).
+    </div>
+    <div class="mbox">
+      <span class="mt">③ DERIVATIVES [numpy.gradient]</span>
+      Central difference on actual timestamps (non-uniform spacing):
+      vx[i] = (x[i+1]-x[i-1]) / (t[i+1]-t[i-1]).
+      Computes velocity, acceleration, and ds/dt.
+      Savitzky-Golay smoothing preserves peak shapes.
+    </div>
+    <div class="mbox">
+      <span class="mt">④ ROOTFINDING [bisection + Newton-Raphson]</span>
+      Finds zeros of ds/dt where speed has local minimum (pen stops).
+      True bisection: f(a)·f(b) &lt; 0, halve interval until |b-a| &lt; 1e-6.
+      Newton-Raphson refines: x_{n+1} = x_n - f(x_n)/f'(x_n)
+      using analytic CubicSpline derivative.
+    </div>
+  </div>
+</div>
+
+<!-- ══ INPUT ══ -->
+<div class="panel">
+  <div class="ptitle">Input — Record or Upload Signature Video</div>
+
+  <div class="input-grid">
+    <!-- LEFT: Recording -->
+    <div class="input-half">
+      <div class="input-label">Option A — Record directly</div>
+      <div class="rec-area" id="rec-area">
+        <div class="rec-ind" id="rec-ind"><div class="rec-dot"></div>REC</div>
+        <div class="rec-hint" id="rec-hint">PRESS RECORD THEN DRAW</div>
+        <div class="rec-baseline"></div>
+        <canvas class="rec-canvas" id="rec-cvs" height="220"></canvas>
+      </div>
+      <div class="brow">
+        <button class="btn btn-r" id="btn-rec"   onclick="startRec()">⏺ RECORD</button>
+        <button class="btn btn-y" id="btn-stop"  onclick="stopRec()" style="display:none;">⏹ STOP</button>
+        <button class="btn btn-c"                onclick="clearRec()">CLEAR</button>
+      </div>
+      <div class="dl-row" id="dl-row">
+        <a class="dl-link" id="dl-btn" download="signature.webm">⬇ DOWNLOAD VIDEO</a>
+        <span class="dl-info" id="dl-info"></span>
+      </div>
+    </div>
+
+    <!-- RIGHT: Upload -->
+    <div class="input-half">
+      <div class="input-label">Option B — Upload existing video</div>
+      <div class="upload-area" id="upload-area">
+        <input type="file" id="file-input" accept="video/*,.webm,.mp4" onchange="onFileSelected(this)">
+        <div class="upload-icon">📁</div>
+        <div class="upload-text">
+          Click to select or drag &amp; drop<br>
+          <span>WebM, MP4</span> supported
+        </div>
+        <div class="upload-filename" id="upload-name"></div>
+      </div>
+      <div class="note" style="margin-top:8px;">
+        Upload any video of signature being drawn on dark background. Use this to analyze recordings from Option A — download first, then upload here.
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYZE BUTTON -->
+  <div class="analyze-row">
+    <button class="btn btn-g btn-big" id="btn-analyze" onclick="doAnalyze()" disabled>ANALYZE →</button>
+    <span class="analyze-status" id="analyze-status">Record or upload a video to begin.</span>
+  </div>
+</div>
+
+<!-- ══ LOG ══ -->
+<div class="panel">
+  <div class="ptitle">System Log</div>
+  <div class="log" id="lg"></div>
+</div>
+
+<!-- ══ RESULTS ══ -->
+<div id="results">
+
+  <!-- Stats bar -->
+  <div class="panel">
+    <div class="ptitle">Analysis Results</div>
+    <div class="stats">
+      <div class="sbox"><span class="sv" id="st-frames">—</span><span class="sl">Frames</span></div>
+      <div class="sbox"><span class="sv" id="st-fps">—</span><span class="sl">FPS</span></div>
+      <div class="sbox"><span class="sv" id="st-pen">—</span><span class="sl">Pen Positions</span></div>
+      <div class="sbox"><span class="sv" id="st-zeros">—</span><span class="sl">Speed Minima</span></div>
+      <div class="sbox"><span class="sv" id="st-lifts">—</span><span class="sl">Arc Length</span></div>
+    </div>
+  </div>
+
+  <!-- 4 Method Visualizations -->
+  <div class="panel">
+    <div class="ptitle">① Edge Detection</div>
+    <div class="vizgrid">
+      <div class="vbox">
+        <div class="vt">Pen tip trajectory (cyan) — centroid of new pixels per frame</div>
+        <canvas id="va1" width="460" height="200"></canvas>
+        <div class="math-note">new_pixels[t] = mask[t] AND NOT mask[t-1] &nbsp;→&nbsp; tip = centroid(new_pixels[t])</div>
+      </div>
+      <div class="vbox">
+        <div class="vt">Sobel edge points (red) — stroke boundaries G=√(Gx²+Gy²)</div>
+        <canvas id="va2" width="460" height="200"></canvas>
+        <div class="math-note">G = √(Gx² + Gy²) &nbsp;|&nbsp; Gx = ∂I/∂x, Gy = ∂I/∂y &nbsp;(Sobel 3×3)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ptitle">② Interpolation — Cubic Spline</div>
+    <div class="vizgrid">
+      <div class="vbox">
+        <div class="vt">Raw pen positions vs interpolated smooth curve</div>
+        <canvas id="vb1" width="460" height="200"></canvas>
+        <div class="math-note">Arc-length: s[i] = s[i-1] + ‖pos[i] - pos[i-1]‖ &nbsp;→&nbsp; CubicSpline(s, x), CubicSpline(s, y)</div>
+      </div>
+      <div class="vbox">
+        <div class="vt">Spline curve only — reconstructed continuous path</div>
+        <canvas id="vb2" width="460" height="200"></canvas>
+        <div class="math-note">C2-continuous &nbsp;|&nbsp; residual at knots = 0 &nbsp;|&nbsp; N uniform output points</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ptitle">③ Derivatives — Velocity &amp; Acceleration</div>
+    <div class="vizgrid">
+      <div class="vbox">
+        <div class="vt">Normalized speed profile (cyan)</div>
+        <canvas id="vc1" width="460" height="200"></canvas>
+        <div class="math-note">vx[i] = (x[i+1]-x[i-1]) / (t[i+1]-t[i-1]) &nbsp;|&nbsp; speed = √(vx²+vy²) &nbsp;|&nbsp; Savitzky-Golay smoothed</div>
+      </div>
+      <div class="vbox">
+        <div class="vt">Normalized acceleration profile (orange)</div>
+        <canvas id="vc2" width="460" height="200"></canvas>
+        <div class="math-note">ax[i] = (vx[i+1]-vx[i-1]) / (t[i+1]-t[i-1]) &nbsp;|&nbsp; accel = √(ax²+ay²)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ptitle">④ Rootfinding — Zeros of ds/dt (Speed Minima)</div>
+    <div class="vizgrid">
+      <div class="vbox">
+        <div class="vt">Speed profile — local minima found by bisection + Newton-Raphson (yellow ▼)</div>
+        <canvas id="vd1" width="460" height="200"></canvas>
+        <div class="math-note">Find x where ds/dt=0 (speed minimum) &nbsp;|&nbsp; Bisection: f(a)·f(mid)&lt;0 → halve interval &nbsp;|&nbsp; Newton: x_{n+1}=x_n - f(x_n)/f'(x_n) &nbsp;|&nbsp; ε=1e-6</div>
+      </div>
+      <div class="vbox">
+        <div class="vt">ds/dt profile — signed rate of speed change</div>
+        <canvas id="vd2" width="460" height="200"></canvas>
+        <div class="math-note">ds/dt = d(speed)/dt &nbsp;|&nbsp; ds/dt &lt; 0: decelerating &nbsp;|&nbsp; ds/dt &gt; 0: accelerating &nbsp;|&nbsp; ds/dt = 0: speed minimum</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end #results -->
+
+</div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════
+   SYNCNATURE — Frontend
+   Record or upload video → send to Python → show results
+   ══════════════════════════════════════════════════════ */
+
+var recMR       = null;
+var recChunks   = [];
+var recBlob     = null;
+var recUrl      = null;
+var isRecording = false;
+var uploadFile  = null;   // File from upload input
+
+/* ── UTILS ── */
+function G(id){ return document.getElementById(id); }
+function log(msg, t){
+  t=t||'i';
+  var el=G('lg'), d=document.createElement('div');
+  d.className='le '+t;
+  d.textContent='['+new Date().toLocaleTimeString('en',{hour12:false})+'] '+msg;
+  el.appendChild(d); el.scrollTop=el.scrollHeight;
+}
+
+function setStatus(msg){ G('analyze-status').textContent=msg; }
+function setAnalyzeBtn(enabled){ G('btn-analyze').disabled=!enabled; }
+
+/* ── CANVAS INIT ── */
+function initCanvas(){
+  var cvs=G('rec-cvs');
+  cvs.width=cvs.parentElement.clientWidth||500;
+  var ctx=cvs.getContext('2d');
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  var by=cvs.height*0.70;
+  ctx.save(); ctx.setLineDash([6,5]);
+  ctx.strokeStyle='rgba(255,0,60,.28)'; ctx.lineWidth=1; ctx.shadowBlur=0;
+  ctx.beginPath(); ctx.moveTo(cvs.width*0.05,by); ctx.lineTo(cvs.width*0.95,by); ctx.stroke();
+  ctx.restore();
+  G('rec-hint').style.opacity='1';
+}
+
+/* ── DRAWING ── */
+var drawInit=false;
+function setupDraw(){
+  if(drawInit) return;
+  drawInit=true;
+  var cvs=G('rec-cvs');
+  var drawing=false, lx=0, ly=0;
+  function xy(e){
+    var c=G('rec-cvs'),r=c.getBoundingClientRect(),src=e.touches?e.touches[0]:e;
+    return {x:(src.clientX-r.left)*(c.width/r.width),y:(src.clientY-r.top)*(c.height/r.height)};
+  }
+  function dn(e){ e.preventDefault(); var p=xy(e); drawing=true; lx=p.x; ly=p.y; G('rec-hint').style.opacity='0'; }
+  function mv(e){
+    e.preventDefault(); if(!drawing) return;
+    var p=xy(e),c=G('rec-cvs'),ctx=c.getContext('2d');
+    ctx.strokeStyle='#00f5ff'; ctx.lineWidth=2.0; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.shadowBlur=0;
+    ctx.beginPath(); ctx.moveTo(lx,ly); ctx.lineTo(p.x,p.y); ctx.stroke();
+    lx=p.x; ly=p.y;
+  }
+  function up(e){ e.preventDefault(); drawing=false; }
+  cvs.addEventListener('mousedown',dn);cvs.addEventListener('mousemove',mv);
+  cvs.addEventListener('mouseup',up);cvs.addEventListener('mouseleave',up);
+  cvs.addEventListener('touchstart',dn,{passive:false});cvs.addEventListener('touchmove',mv,{passive:false});
+  cvs.addEventListener('touchend',up,{passive:false});
+}
+
+/* ── RECORDING ── */
+function startRec(){
+  recChunks=[]; recBlob=null;
+  if(recUrl){ URL.revokeObjectURL(recUrl); recUrl=null; }
+  initCanvas();
+  G('dl-row').classList.remove('on');
+  uploadFile=null; G('upload-name').classList.remove('on');
+  setAnalyzeBtn(false); setStatus('Recording...');
+
+  try {
+    var stream=G('rec-cvs').captureStream(30);
+    var mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp9')?'video/webm;codecs=vp9':'video/webm';
+    recMR=new MediaRecorder(stream,{mimeType:mime});
+    recMR.ondataavailable=function(e){ if(e.data&&e.data.size>0) recChunks.push(e.data); };
+    recMR.onstop=function(){
+      recBlob=new Blob(recChunks,{type:'video/webm'});
+      recUrl=URL.createObjectURL(recBlob);
+      G('dl-btn').href=recUrl;
+      G('dl-info').textContent=Math.round(recBlob.size/1024)+'KB — download and upload to analyze';
+      G('dl-row').classList.add('on');
+      // Do NOT enable analyze — user must download then upload
+      setStatus('Recording saved. Download the video, then upload it using Option B to analyze.');
+      log('Recording saved — '+Math.round(recBlob.size/1024)+'KB. Download it, then upload to analyze.','i');
+    };
+    recMR.start(100); isRecording=true;
+    G('btn-rec').style.display='none'; G('btn-stop').style.display='inline-flex';
+    G('rec-ind').classList.add('on'); G('rec-area').classList.add('recording');
+    log('Recording started.','w');
+  } catch(err){ log('Recording error: '+err.message,'e'); setStatus('Recording failed.'); }
+}
+
+function stopRec(){
+  if(!recMR||!isRecording) return;
+  recMR.stop(); isRecording=false;
+  G('btn-stop').style.display='none'; G('btn-rec').style.display='inline-flex';
+  G('rec-ind').classList.remove('on'); G('rec-area').classList.remove('recording');
+}
+
+function clearRec(){
+  if(isRecording) stopRec();
+  recChunks=[]; recBlob=null;
+  if(recUrl){ URL.revokeObjectURL(recUrl); recUrl=null; }
+  initCanvas();
+  G('dl-row').classList.remove('on');
+  if(!uploadFile){ setAnalyzeBtn(false); setStatus('Upload a signature video to analyze. Use Option A to record and download first.'); }
+  log('Canvas cleared.','i');
+}
+
+/* ── FILE UPLOAD ── */
+function onFileSelected(input){
+  if(!input.files||!input.files[0]) return;
+  uploadFile=input.files[0];
+  G('upload-name').textContent='✓ '+uploadFile.name+' ('+Math.round(uploadFile.size/1024)+'KB)';
+  G('upload-name').classList.add('on');
+  setAnalyzeBtn(true);
+  setStatus('File ready. Click ANALYZE to process.');
+  log('File selected: '+uploadFile.name+' ('+Math.round(uploadFile.size/1024)+'KB)','i');
+}
+
+// Drag and drop
+document.addEventListener('DOMContentLoaded',function(){
+  initCanvas(); setupDraw();
+  var ua=G('upload-area');
+  ua.addEventListener('dragover',function(e){e.preventDefault();ua.classList.add('drag');});
+  ua.addEventListener('dragleave',function(){ua.classList.remove('drag');});
+  ua.addEventListener('drop',function(e){
+    e.preventDefault(); ua.classList.remove('drag');
+    var f=e.dataTransfer.files[0];
+    if(f&&f.type.startsWith('video')){ uploadFile=f; onFileSelected({files:[f]}); }
+  });
+});
+
+/* ── ANALYZE ── */
+async function doAnalyze(){
+  var videoBlob = uploadFile || recBlob;
+  if(!videoBlob){ log('No video. Record or upload first.','e'); return; }
+
+  G('btn-analyze').disabled=true;
+  G('btn-analyze').textContent='PROCESSING…';
+  setStatus('Sending to Python for analysis…');
+  G('results').style.display='none';
+  log('Sending '+Math.round(videoBlob.size/1024)+'KB to Python…','i');
+
+  var fd=new FormData();
+  fd.append('video', videoBlob, uploadFile?uploadFile.name:'signature.webm');
+
+  try {
+    var res=await fetch('/analyze',{method:'POST',body:fd});
+    var data=await res.json();
+
+    if(data.error){
+      log('Python error: '+data.error,'e');
+      setStatus('Analysis failed: '+data.error);
+      G('btn-analyze').disabled=false;
+      G('btn-analyze').textContent='ANALYZE →';
+      return;
+    }
+
+    log('Analysis complete — '+data.n_frames+' frames @ '+data.fps.toFixed(1)+'fps','s');
+    log('Pen positions: '+data.n_pen+' | Speed minima: '+data.zero_count,'s');
+    log('Max speed: '+Math.round(data.max_speed)+'px/s | Arc length: '+Math.round(data.total_len)+'px','i');
+    log('Spline residual at knots: '+data.max_residual.toExponential(2)+'px (should be ~0)','i');
+
+    renderResults(data);
+    setStatus('Analysis complete.');
+    G('btn-analyze').disabled=false;
+    G('btn-analyze').textContent='ANALYZE →';
+
+  } catch(err){
+    log('Server error: '+err,'e');
+    setStatus('Server error.');
+    G('btn-analyze').disabled=false;
+    G('btn-analyze').textContent='ANALYZE →';
+  }
+}
+
+/* ── RENDER ── */
+function clrCvs(cvs){
+  var c=cvs.getContext('2d'); c.fillStyle='#020408'; c.fillRect(0,0,cvs.width,cvs.height);
+}
+
+function drawPaths(cvs,paths,colors,lws){
+  clrCvs(cvs);
+  var allPts=[];
+  paths.forEach(function(p){allPts=allPts.concat(p);});
+  if(!allPts.length) return;
+  var x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  allPts.forEach(function(pt){x0=Math.min(x0,pt.x);x1=Math.max(x1,pt.x);y0=Math.min(y0,pt.y);y1=Math.max(y1,pt.y);});
+  var W=cvs.width,H=cvs.height,pad=12;
+  var sc=Math.min((W-pad*2)/Math.max(x1-x0,1),(H-pad*2)/Math.max(y1-y0,1));
+  var ox=pad+(W-pad*2-(x1-x0)*sc)/2, oy=pad+(H-pad*2-(y1-y0)*sc)/2;
+  function tx(pt){return ox+(pt.x-x0)*sc;} function ty(pt){return oy+(pt.y-y0)*sc;}
+  var c=cvs.getContext('2d');
+  paths.forEach(function(path,i){
+    if(!path||path.length<2) return;
+    c.strokeStyle=colors[i]||'#00f5ff'; c.lineWidth=lws?lws[i]:1.5;
+    c.lineCap='round'; c.lineJoin='round';
+    c.shadowBlur=8; c.shadowColor=colors[i]||'#00f5ff'; c.globalAlpha=0.85;
+    c.beginPath(); c.moveTo(tx(path[0]),ty(path[0]));
+    for(var j=1;j<path.length;j++) c.lineTo(tx(path[j]),ty(path[j]));
+    c.stroke();
+  });
+  c.globalAlpha=1; c.shadowBlur=0;
+  return {tx:tx,ty:ty,x0:x0,y0:y0,sc:sc,ox:ox,oy:oy};
+}
+
+function drawSignal(cvs,signals,colors,markers){
+  clrCvs(cvs);
+  var allV=[]; signals.forEach(function(s){allV=allV.concat(s);});
+  if(!allV.length) return;
+  var vmin=Math.min.apply(null,allV), vmax=Math.max.apply(null,allV);
+  if(vmax-vmin<1e-10) vmax=vmin+1;
+  var W=cvs.width,H=cvs.height,px=10,py=12;
+  var c=cvs.getContext('2d');
+  function sx(i,n){return px+(i/(n-1))*(W-px*2);}
+  function sy(v){return H-py-((v-vmin)/(vmax-vmin))*(H-py*2);}
+  // Zero line
+  if(vmin<0&&vmax>0){
+    c.strokeStyle='rgba(255,255,255,.1)';c.lineWidth=1;c.setLineDash([3,4]);
+    c.beginPath();c.moveTo(px,sy(0));c.lineTo(W-px,sy(0));c.stroke();c.setLineDash([]);
+  }
+  signals.forEach(function(sig,si){
+    if(!sig||sig.length<2) return;
+    c.strokeStyle=colors[si]||'#00f5ff';c.lineWidth=1.8;
+    c.shadowBlur=7;c.shadowColor=colors[si]||'#00f5ff';c.globalAlpha=0.85;
+    c.beginPath();c.moveTo(sx(0,sig.length),sy(sig[0]));
+    for(var i=1;i<sig.length;i++) c.lineTo(sx(i,sig.length),sy(sig[i]));
+    c.stroke();
+  });
+  if(markers&&signals[0]){
+    var sig=signals[0];
+    markers.forEach(function(idx){
+      var xi=Math.min(idx,sig.length-1);
+      c.strokeStyle='#ffe600';c.lineWidth=1.5;c.shadowBlur=8;c.shadowColor='#ffe600';c.globalAlpha=0.9;c.setLineDash([3,3]);
+      c.beginPath();c.moveTo(sx(xi,sig.length),py);c.lineTo(sx(xi,sig.length),H-py);c.stroke();c.setLineDash([]);
+      c.fillStyle='#ffe600';c.shadowBlur=12;c.globalAlpha=1;
+      c.beginPath();c.arc(sx(xi,sig.length),sy(sig[xi]),5,0,Math.PI*2);c.fill();
+    });
+  }
+  c.globalAlpha=1;c.shadowBlur=0;
+}
+
+function renderResults(data){
+  G('results').style.display='block';
+
+  // Stats
+  G('st-frames').textContent = data.n_frames;
+  G('st-fps').textContent    = data.fps.toFixed(1);
+  G('st-pen').textContent    = data.n_pen;
+  G('st-zeros').textContent  = data.zero_count;
+  G('st-lifts').textContent  = Math.round(data.total_len)+'px';
+
+  // ── Panel 1: Edge Detection ──
+  // Left: pen tip trajectory
+  var tf=drawPaths(G('va1'),[data.pen_positions],['#00f5ff'],[1.5]);
+  // Right: Sobel edge points only on black — no trajectory underneath
+  if(data.edge_points&&data.edge_points.length){
+    var c2=G('va2').getContext('2d');
+    var cvs2=G('va2');
+    c2.fillStyle='#020408'; c2.fillRect(0,0,cvs2.width,cvs2.height);
+    var epx=data.edge_points.map(function(e){return e[0];});
+    var epy=data.edge_points.map(function(e){return e[1];});
+    var ex0=Math.min.apply(null,epx),ex1=Math.max.apply(null,epx);
+    var ey0=Math.min.apply(null,epy),ey1=Math.max.apply(null,epy);
+    var W=cvs2.width,H=cvs2.height,pad=12;
+    var sc=Math.min((W-pad*2)/Math.max(ex1-ex0,1),(H-pad*2)/Math.max(ey1-ey0,1));
+    var ox=pad+(W-pad*2-(ex1-ex0)*sc)/2, oy=pad+(H-pad*2-(ey1-ey0)*sc)/2;
+    c2.fillStyle='rgba(255,60,60,0.9)'; c2.shadowBlur=3; c2.shadowColor='#ff3232';
+    data.edge_points.forEach(function(ep){
+      c2.beginPath();
+      c2.arc(ox+(ep[0]-ex0)*sc, oy+(ep[1]-ey0)*sc, 2, 0, Math.PI*2);
+      c2.fill();
+    });
+    c2.shadowBlur=0;
+  }
+
+  // ── Panel 2: Interpolation ──
+  // Left: raw positions (dots) + curve overlay
+  var tf3=drawPaths(G('vb1'),[data.curve, data.pen_positions],['#00ff88','rgba(0,245,255,0.5)'],[2,0]);
+  if(tf3){
+    var c3=G('vb1').getContext('2d');
+    data.pen_positions.forEach(function(p){
+      c3.fillStyle='rgba(0,245,255,0.6)';c3.shadowBlur=0;
+      c3.beginPath();c3.arc(tf3.tx(p),tf3.ty(p),2.5,0,Math.PI*2);c3.fill();
+    });
+  }
+  // Right: smooth spline only
+  drawPaths(G('vb2'),[data.curve],['#00ff88'],[2]);
+
+  // ── Panel 3: Derivatives ──
+  drawSignal(G('vc1'),[data.norm_speed],['#00f5ff']);
+  drawSignal(G('vc2'),[data.norm_accel],['#ff8800']);
+
+  // ── Panel 4: Rootfinding ──
+  // Left: speed with zero-crossing markers
+  drawSignal(G('vd1'),[data.norm_speed],['#00ff88'],data.zeros);
+  // Right: ds/dt with zero line
+  drawSignal(G('vd2'),[data.ds_dt],['#ffd600']);
+
+  // Scroll to results
+  setTimeout(function(){ G('results').scrollIntoView({behavior:'smooth'}); }, 100);
+}
+
+window.addEventListener('resize',function(){
+  if(!isRecording) initCanvas();
+});
+</script>
+</body>
+</html>
